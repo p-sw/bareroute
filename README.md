@@ -13,37 +13,92 @@ npm install bareroute
 ## Usage
 
 ```tsx
+import { useState } from 'react';
 import { History, useRoot, useRouter, useRouterListener } from 'bareroute';
 
-function MyComponent() {
+function App() {
   const pathname = useRoot();
-  const router = useRouter();
 
-  useRouterListener((event) => {
-    if (!event.detail.refreshRoot) {
-      event.detail.dispatchRootRefresh();
-    }
-  }, 'main-nav');
+  let page = <NotFoundPage />;
+
+  if (pathname === '/') {
+    page = <HomePage />;
+  } else if (pathname === '/settings') {
+    page = <SettingsPage />;
+  }
 
   return (
     <>
       <History />
-      <div>
-        <p>Current path: {pathname}</p>
-        <button onClick={() => router.push('/new-path', undefined, { routeId: 'main-nav' })}>
-          Go to /new-path
-        </button>
-        <button onClick={() => router.replace('/other-path')}>
-          Replace with /other-path
-        </button>
-        <button onClick={() => router.back()}>
-          Go Back
-        </button>
-      </div>
+      <main>{page}</main>
     </>
   );
 }
+
+function HomePage() {
+  const router = useRouter();
+
+  return (
+    <section>
+      <h1>Home</h1>
+      <p>This button uses the default root refresh flow.</p>
+      <button onClick={() => router.push('/settings')}>
+        Go to settings page
+      </button>
+    </section>
+  );
+}
+
+function SettingsPage() {
+  const router = useRouter();
+  const [tab, setTab] = useState('profile');
+
+  useRouterListener((event) => {
+    const nextTab = new URL(event.detail.href).searchParams.get('tab');
+
+    if (nextTab) {
+      setTab(nextTab);
+    }
+  }, 'settings-tab');
+
+  return (
+    <section>
+      <h1>Settings</h1>
+      <p>Active tab: {tab}</p>
+
+      <button onClick={() => router.push('/?from=settings')}>
+        Back to home with root refresh
+      </button>
+
+      <button
+        onClick={() => {
+          router.replace('/settings?tab=billing', undefined, {
+            refreshRoot: false,
+            routeId: 'settings-tab',
+          });
+        }}
+      >
+        Switch to billing without changing the root page
+      </button>
+    </section>
+  );
+}
+
+function NotFoundPage() {
+  const router = useRouter();
+
+  return (
+    <section>
+      <h1>Not found</h1>
+      <button onClick={() => router.replace('/')}>
+        Go home
+      </button>
+    </section>
+  );
+}
 ```
+
+Place `<History />` once in the app root. Use `useRoot()` there to decide which page component should render, and keep `useRouter()` and `useRouterListener()` inside the page components that own the navigation behavior.
 
 ## API
 
