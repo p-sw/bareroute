@@ -2,7 +2,6 @@ import { spawnSync } from "child_process";
 
 console.log("Building...");
 
-// 1. Build the JS bundle
 const result = await Bun.build({
   entrypoints: ["src/index.ts"],
   outdir: "dist",
@@ -20,7 +19,6 @@ if (!result.success) {
   process.exit(1);
 }
 
-// 2. Build the declarations using tsc
 console.log("Generating declarations...");
 const tscResult = spawnSync("bun", ["x", "tsc", "-p", "tsconfig.build.json"], { stdio: "inherit" });
 
