@@ -50,11 +50,21 @@ describe("useRoot", () => {
     }));
 
     act(() => {
-      result.current.router.push("/silent", undefined, { refreshRoot: false });
+      result.current.router.push("/silent", undefined, { refreshRoot: false, routeId: "silent" });
     });
 
     expect(window.location.pathname).toBe("/silent");
     expect(result.current.root).toBe("/");
+  });
+
+  test("requires routeId when refreshRoot is false", () => {
+    const { result } = renderHook(() => useRouter());
+
+    expect(() => {
+      act(() => {
+        result.current.push("/invalid", undefined, { refreshRoot: false } as never);
+      });
+    }).toThrow("routeId is required when refreshRoot is false.");
   });
 });
 
@@ -70,6 +80,30 @@ describe("History", () => {
     });
 
     expect(result.current).toBe("/popped");
+  });
+
+  test("ignores popstate root refresh when the current entry disables it", () => {
+    render(createElement(History));
+
+    const { result } = renderHook(() => ({
+      root: useRoot(),
+      router: useRouter(),
+    }));
+
+    act(() => {
+      result.current.router.push("/hidden", { from: "hidden" }, { refreshRoot: false, routeId: "hidden" });
+      result.current.router.push("/visible");
+    });
+
+    expect(result.current.root).toBe("/visible");
+
+    act(() => {
+      window.history.back();
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(window.location.pathname).toBe("/hidden");
+    expect(result.current.root).toBe("/visible");
   });
 });
 
@@ -92,5 +126,21 @@ describe("useRouterListener", () => {
     expect(events[0]?.detail.pathname).toBe("/profile");
     expect(events[0]?.detail.routeId).toBe("profile");
     expect(events[0]?.detail.state).toEqual({ id: 1 });
+  });
+
+  test("can manually dispatch a root refresh from the listener", () => {
+    const { result: rootResult } = renderHook(() => useRoot());
+
+    renderHook(() => useRouterListener((event) => {
+      event.detail.dispatchRootRefresh();
+    }, "manual"));
+
+    const { result: routerResult } = renderHook(() => useRouter());
+
+    act(() => {
+      routerResult.current.push("/manual", { id: 2 }, { refreshRoot: false, routeId: "manual" });
+    });
+
+    expect(rootResult.current).toBe("/manual");
   });
 });

@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 const ROOT_REFRESH_EVENT = "bareroute-refresh-root";
+const BAREROUTE_STATE_KEY = "__bareroute";
+
+let skipNextPopStateRefresh = false;
 
 export type RouterMethod = "push" | "replace" | "go" | "back" | "forward";
 
-export interface RouterMethodOptions {
-  refreshRoot?: boolean;
-  routeId?: string;
+export type RouterMethodOptions =
+  | { refreshRoot?: true; routeId?: string }
+  | { refreshRoot: false; routeId: string };
+
+interface BarerouteState {
+  [BAREROUTE_STATE_KEY]: true;
+  data: unknown;
+  refreshRoot: boolean;
 }
 
 export interface RouterEventDetail {
@@ -16,6 +24,7 @@ export interface RouterEventDetail {
   refreshRoot: boolean;
   routeId?: string;
   state: unknown;
+  dispatchRootRefresh: typeof dispatchRootRefresh;
   delta?: number;
   url?: string;
 }
@@ -26,7 +35,40 @@ export function getRouteEventName(routeId: string) {
   return `bareroute-route-${routeId}`;
 }
 
-function dispatchRootRefresh() {
+function isBarerouteState(state: unknown): state is BarerouteState {
+  return (
+    typeof state === "object" &&
+    state !== null &&
+    BAREROUTE_STATE_KEY in state &&
+    (state as Record<string, unknown>)[BAREROUTE_STATE_KEY] === true
+  );
+}
+
+function createHistoryState(data: unknown, refreshRoot: boolean): BarerouteState {
+  return {
+    [BAREROUTE_STATE_KEY]: true,
+    data,
+    refreshRoot,
+  };
+}
+
+function getRouteState(state: unknown) {
+  return isBarerouteState(state) ? state.data : state;
+}
+
+function shouldRefreshRoot(state: unknown) {
+  return !isBarerouteState(state) || state.refreshRoot;
+}
+
+function getRouteId(options: RouterMethodOptions) {
+  if (options.refreshRoot === false && !options.routeId) {
+    throw new Error("routeId is required when refreshRoot is false.");
+  }
+
+  return options.routeId;
+}
+
+export function dispatchRootRefresh() {
   window.dispatchEvent(new CustomEvent(ROOT_REFRESH_EVENT));
 }
 
@@ -42,7 +84,8 @@ function createRouterEventDetail(
     pathname: window.location.pathname,
     refreshRoot,
     routeId,
-    state: window.history.state,
+    state: getRouteState(window.history.state),
+    dispatchRootRefresh,
     ...detail,
   };
 }
@@ -72,6 +115,15 @@ function getRootServerSnapshot() {
 export function History() {
   useEffect(() => {
     const handlePopState = () => {
+      if (skipNextPopStateRefresh) {
+        skipNextPopStateRefresh = false;
+        return;
+      }
+
+      if (!shouldRefreshRoot(window.history.state)) {
+        return;
+      }
+
       dispatchRootRefresh();
     };
 
@@ -97,12 +149,13 @@ export function useRouter() {
   return useMemo(() => ({
     push: (url: string, data?: unknown, options: RouterMethodOptions = {}) => {
       const refreshRoot = options.refreshRoot ?? true;
+      const routeId = getRouteId(options);
 
-      window.history.pushState(data, "", url);
+      window.history.pushState(createHistoryState(data, refreshRoot), "", url);
 
       dispatchRouteEvent(
-        options.routeId,
-        createRouterEventDetail("push", refreshRoot, options.routeId, { url })
+        routeId,
+        createRouterEventDetail("push", refreshRoot, routeId, { url })
       );
 
       if (refreshRoot) {
@@ -111,12 +164,13 @@ export function useRouter() {
     },
     replace: (url: string, data?: unknown, options: RouterMethodOptions = {}) => {
       const refreshRoot = options.refreshRoot ?? true;
+      const routeId = getRouteId(options);
 
-      window.history.replaceState(data, "", url);
+      window.history.replaceState(createHistoryState(data, refreshRoot), "", url);
 
       dispatchRouteEvent(
-        options.routeId,
-        createRouterEventDetail("replace", refreshRoot, options.routeId, { url })
+        routeId,
+        createRouterEventDetail("replace", refreshRoot, routeId, { url })
       );
 
       if (refreshRoot) {
@@ -125,45 +179,48 @@ export function useRouter() {
     },
     go: (delta: number, options: RouterMethodOptions = {}) => {
       const refreshRoot = options.refreshRoot ?? true;
+      const routeId = getRouteId(options);
+
+      if (!refreshRoot) {
+        skipNextPopStateRefresh = true;
+      }
 
       window.history.go(delta);
 
       dispatchRouteEvent(
-        options.routeId,
-        createRouterEventDetail("go", refreshRoot, options.routeId, { delta })
+        routeId,
+        createRouterEventDetail("go", refreshRoot, routeId, { delta })
       );
-
-      if (refreshRoot) {
-        dispatchRootRefresh();
-      }
     },
     back: (options: RouterMethodOptions = {}) => {
       const refreshRoot = options.refreshRoot ?? true;
+      const routeId = getRouteId(options);
+
+      if (!refreshRoot) {
+        skipNextPopStateRefresh = true;
+      }
 
       window.history.back();
 
       dispatchRouteEvent(
-        options.routeId,
-        createRouterEventDetail("back", refreshRoot, options.routeId)
+        routeId,
+        createRouterEventDetail("back", refreshRoot, routeId)
       );
-
-      if (refreshRoot) {
-        dispatchRootRefresh();
-      }
     },
     forward: (options: RouterMethodOptions = {}) => {
       const refreshRoot = options.refreshRoot ?? true;
+      const routeId = getRouteId(options);
+
+      if (!refreshRoot) {
+        skipNextPopStateRefresh = true;
+      }
 
       window.history.forward();
 
       dispatchRouteEvent(
-        options.routeId,
-        createRouterEventDetail("forward", refreshRoot, options.routeId)
+        routeId,
+        createRouterEventDetail("forward", refreshRoot, routeId)
       );
-
-      if (refreshRoot) {
-        dispatchRootRefresh();
-      }
     },
   }), []);
 }

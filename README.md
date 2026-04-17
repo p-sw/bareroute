@@ -20,7 +20,9 @@ function MyComponent() {
   const router = useRouter();
 
   useRouterListener((event) => {
-    console.log(event.detail.method, event.detail.pathname);
+    if (!event.detail.refreshRoot) {
+      event.detail.dispatchRootRefresh();
+    }
   }, 'main-nav');
 
   return (
@@ -65,9 +67,15 @@ Returns an object with:
 
 Each method accepts `options.refreshRoot`, which defaults to `true`, and `options.routeId`, which dispatches a matching `bareroute-route-{id}` event for `useRouterListener()`.
 
+When `options.refreshRoot` is `false`, `options.routeId` is required.
+
+`push()` and `replace()` persist the `refreshRoot` setting into the history state so `History` can ignore later `popstate` updates for entries that were created with `refreshRoot: false`.
+
 ### `useRouterListener(listener, routeId)`
 
 Subscribes to the custom event named `bareroute-route-{routeId}` and passes the `CustomEvent` to `listener`.
+
+The listener receives `event.detail.dispatchRootRefresh()`, which lets you manually refresh `useRoot()` when a route method was called with `refreshRoot: false`.
 
 ## License
 
