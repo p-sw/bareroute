@@ -1,0 +1,12 @@
+node_modules/
+src/
+coverage/
+out/
+dist/*.map
+build.ts
+tsconfig.json
+tsconfig.build.json
+bun.lock
+*.tgz
+*.log
+.DS_Store
