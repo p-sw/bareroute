@@ -1,6 +1,6 @@
 # bareroute
 
-A minimal, "bareroute" React hook library for managing the browser's History API.
+A minimal React routing helper for the browser History API.
 
 ## Installation
 
@@ -13,36 +13,61 @@ npm install bareroute
 ## Usage
 
 ```tsx
-import { useHistory } from 'bareroute';
+import { History, useRoot, useRouter, useRouterListener } from 'bareroute';
 
 function MyComponent() {
-  const { href, push, replace, back } = useHistory();
+  const pathname = useRoot();
+  const router = useRouter();
+
+  useRouterListener((event) => {
+    console.log(event.detail.method, event.detail.pathname);
+  }, 'main-nav');
 
   return (
-    <div>
-      <p>Current URL: {href}</p>
-      <button onClick={() => push('/new-path')}>Go to /new-path</button>
-      <button onClick={() => replace('/other-path')}>Replace with /other-path</button>
-      <button onClick={() => back()}>Go Back</button>
-    </div>
+    <>
+      <History />
+      <div>
+        <p>Current path: {pathname}</p>
+        <button onClick={() => router.push('/new-path', undefined, { routeId: 'main-nav' })}>
+          Go to /new-path
+        </button>
+        <button onClick={() => router.replace('/other-path')}>
+          Replace with /other-path
+        </button>
+        <button onClick={() => router.back()}>
+          Go Back
+        </button>
+      </div>
+    </>
   );
 }
 ```
 
 ## API
 
-### `useHistory()`
+### `<History />`
+
+Registers the `popstate` listener that refreshes `useRoot()` when browser navigation changes the current entry.
+
+### `useRoot()`
+
+Returns the current `window.location.pathname` and updates when `bareroute-refresh-root` is dispatched.
+
+### `useRouter()`
 
 Returns an object with:
 
-- `href`: The current `window.location.href`.
-- `location`: The `window.location` object.
-- `state`: The `window.history.state`.
-- `push(url, data?)`: Pushes a new entry to the history stack.
-- `replace(url, data?)`: Replaces the current entry on the history stack.
-- `go(delta)`: Moves through history by a delta.
-- `back()`: Equivalent to `go(-1)`.
-- `forward()`: Equivalent to `go(1)`.
+- `push(url, data?, options?)`
+- `replace(url, data?, options?)`
+- `go(delta, options?)`
+- `back(options?)`
+- `forward(options?)`
+
+Each method accepts `options.refreshRoot`, which defaults to `true`, and `options.routeId`, which dispatches a matching `bareroute-route-{id}` event for `useRouterListener()`.
+
+### `useRouterListener(listener, routeId)`
+
+Subscribes to the custom event named `bareroute-route-{routeId}` and passes the `CustomEvent` to `listener`.
 
 ## License
 
